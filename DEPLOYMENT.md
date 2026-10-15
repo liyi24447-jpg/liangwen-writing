@@ -15,8 +15,16 @@
 | `PORT` | 否 | 平台自动注入（本地默认 3001） | 服务端口 |
 | `FRONTEND_ORIGIN` | 否 | 你的前端域名 | 前后端分域部署时配置跨域 |
 | `INITIAL_ADMIN_ACCOUNT` | 否 | 自定义 | 该账号注册时若系统尚无管理员，自动成为管理员 |
+| `LLM_API_KEY` | 是（AI 功能） | 你的模型服务商后台 | OpenAI 兼容服务的密钥，只放服务端 |
+| `LLM_BASE_URL` | 否 | 服务商文档 | 默认 `https://api.deepseek.com/v1`；OpenAI 填 `https://api.openai.com/v1` |
+| `LLM_MODEL` | 否 | 服务商文档 | 默认 `deepseek-chat`；OpenAI 填 `gpt-4o-mini` |
 
 前端不需要任何环境变量。本地开发请复制 `.env.example` 为 `.env` 填写。
+
+> AI 生成说明：项目原 AI 能力依赖飞书「妙搭」平台内置运行时，独立部署后不可用。
+> 新版已改为服务端 OpenAI 兼容代理（`/api/capability/:id/stream`），只需配置上表
+> `LLM_*` 三个变量即可，支持 DeepSeek / OpenAI / 通义 / 智谱 / Moonshot 等任何
+> OpenAI 兼容服务。后端会按各能力的提示词模板生成对应内容（书名、梗概、正文等）。
 
 ## 数据库初始化
 

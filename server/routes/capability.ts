@@ -63,7 +63,7 @@ async function handleCapability(
 
     // 流式文本生成：优先走通用 LLM（OpenAI 兼容），未配置时回退妙搭代理
     if (mode === 'stream' && getLLMConfig()) {
-      await streamTextViaLLM(req.body, req, res);
+      await streamTextViaLLM(capId, req.body, req, res);
       return;
     }
 
