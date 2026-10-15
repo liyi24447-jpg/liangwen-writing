@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authRequired } from '../middleware/auth.js';
+import { getLLMConfig, streamTextViaLLM } from '../lib/llm-provider.js';
 
 const router = Router();
 
@@ -59,6 +60,12 @@ async function handleCapability(
 ): Promise<void> {
   try {
     const capId = String(req.params.capId);
+
+    // 流式文本生成：优先走通用 LLM（OpenAI 兼容），未配置时回退妙搭代理
+    if (mode === 'stream' && getLLMConfig()) {
+      await streamTextViaLLM(req.body, req, res);
+      return;
+    }
 
     if (!MIAODA_CSRF) {
       res.status(503).json({
