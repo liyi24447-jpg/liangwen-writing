@@ -85,6 +85,10 @@ export default function BodyStage({ book, chapterId, onBookUpdate, onBackToList,
     setIsGenerating(true);
     try {
       const bookContext = buildBookContextPrompt(book);
+      const sameVolChapters = book.chapters.filter((c) => c.volumeId === chapter.volumeId);
+      const currentIdxInVol = sameVolChapters.findIndex((c) => c.id === chapter.id);
+      const prevChapter = currentIdxInVol > 0 ? sameVolChapters[currentIdxInVol - 1] : null;
+      const prevContent = prevChapter?.content?.trim() ? prevChapter.content.slice(-600) : undefined;
       const result = await generateNovel(
         {
           genre: book.genre,
@@ -96,6 +100,8 @@ export default function BodyStage({ book, chapterId, onBookUpdate, onBackToList,
           chapter_title: chapterTitleInput || chapter.title,
           chapter_summary: chapterSummaryInput || chapter.summary || '',
           additional_requirements: prompt || `请创作一整章完整内容，约 ${targetWordCount} 字。`,
+          previous_title: prevChapter?.title || '',
+          previous_content: prevContent || '',
         },
         (piece) => {
           setContent((prev) => prev + piece);

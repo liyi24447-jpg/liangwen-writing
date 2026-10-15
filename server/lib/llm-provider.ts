@@ -203,7 +203,7 @@ export async function streamTextViaLLM(
         stream: true,
         temperature: 0.85,
         top_p: 0.95,
-        frequency_penalty: 0.05,
+        frequency_penalty: 0.3,
       }),
     });
   } catch (err: unknown) {

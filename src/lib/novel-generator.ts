@@ -294,9 +294,19 @@ export async function* streamNovelGenerate(
   const baseReq = (params.additional_requirements as string) || '请创作一整章完整内容。';
   const userReq = extraPieces.length > 0 ? extraPieces.join('\n') + '\n\n' + baseReq : baseReq;
 
+  // 续写：若提供了上一章结尾，则要求紧接其后续写，避免重复
+  const prevTitle = typeof params.previous_title === 'string' ? params.previous_title : '';
+  const prevContent = typeof params.previous_content === 'string' ? params.previous_content : '';
+  const hasContinuation = prevContent.trim().length > 0;
+
+  let chapterReq = userReq;
+  if (hasContinuation) {
+    chapterReq += `\n\n【续写要求】本章必须承接上一章${prevTitle ? `《${prevTitle}》` : ''}的结尾继续往下写，直接进入新的情节，严禁重复、复述或改写上一章已经出现的情节、对话与文字。上一章结尾原文如下（请从这段文字之后继续写，不要重复这段）：\n${prevContent}`;
+  }
+
   const finalReq = bookContext
-    ? `【全书设定参考】\n${bookContext}\n\n【本章创作要求】\n${userReq}\n\n重要：请严格按照以上全书设定生成正文，确保人物性格、背景、故事推进方向与全书一致。`
-    : userReq;
+    ? `【全书设定参考】\n${bookContext}\n\n【本章创作要求】\n${chapterReq}\n\n重要：请严格按照以上全书设定生成正文，确保人物性格、背景、故事推进方向与全书一致；本章正文必须服务于【故事梗概】的主线与【详细大纲】中本章对应的情节节点，把大纲要点展开成具体场景、对话与细节，不要照抄大纲条目，也不要另起无关支线。`
+    : chapterReq;
 
   const stream = executor.callStream('textGenerate', {
     genre,
