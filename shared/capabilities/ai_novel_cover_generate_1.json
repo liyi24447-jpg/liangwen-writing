@@ -1,0 +1,46 @@
+{
+  "id": "ai_novel_cover_generate_1",
+  "pluginKey": "@official-plugins/ai-text-to-image",
+  "pluginVersion": "1.0.21",
+  "name": "AI小说封面生成",
+  "description": "根据用户输入的小说题材、风格、书名等信息，生成匹配的高质量小说封面图片",
+  "icon": "",
+  "paramsSchema": {
+    "type": "object",
+    "properties": {
+      "aspect_ratio": {
+        "description": "图片比例，支持的值：1:1、4:3、3:4、16:9、9:16、3:2、2:3",
+        "type": "string"
+      },
+      "novel_title": {
+        "type": "string",
+        "description": "小说名称"
+      },
+      "novel_genre": {
+        "type": "string",
+        "description": "小说题材，如玄幻、都市、言情、科幻、悬疑等"
+      },
+      "cover_style": {
+        "type": "string",
+        "description": "封面风格，如古风、现代、动漫、写实、暗黑、唯美等"
+      },
+      "key_elements": {
+        "type": "string",
+        "description": "封面核心元素，如人物形象、场景、标志性物品等"
+      }
+    },
+    "required": [
+      "novel_title",
+      "novel_genre",
+      "cover_style"
+    ]
+  },
+  "formValue": {
+    "prompt": "你是一位专业的小说封面设计师，擅长创作与小说内容高度匹配的精美封面。\n\n请根据以下信息生成小说封面：\n小说名称：{{input.novel_title}}\n小说题材：{{input.novel_genre}}\n封面风格：{{input.cover_style}}\n核心元素：{{input.key_elements}}\n\n设计要求：\n1. 封面主题鲜明，能够直观体现小说的题材和风格\n2. 视觉冲击力强，色彩搭配协调，符合目标读者审美\n3. 预留书名展示区域，布局合理美观\n4. 细节丰富，画面质感精良\n5. 避免出现低俗、违规内容",
+    "ratio": "{{input.aspect_ratio}}",
+    "watermark": false
+  },
+  "createdAt": 1791893345148,
+  "updatedAt": 1791893345148,
+  "createdBy": 7577785807679786189
+}
