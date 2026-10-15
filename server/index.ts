@@ -12,6 +12,7 @@ import announcementRouter from './routes/announcement.js';
 import redemptionRouter from './routes/redemption.js';
 import dataRouter from './routes/data.js';
 import quotaRouter from './routes/quota.js';
+import capabilityRouter from './routes/capability.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -41,6 +42,7 @@ app.use('/api/announcement', announcementRouter);
 app.use('/api/redemption', redemptionRouter);
 app.use('/api/data', dataRouter);
 app.use('/api/quota', quotaRouter);
+app.use('/api', capabilityRouter);
 
 // 健康检查
 app.get('/api/health', async (_req, res) => {

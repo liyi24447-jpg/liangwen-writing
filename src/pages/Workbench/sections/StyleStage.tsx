@@ -125,9 +125,11 @@ export default function StyleStage({ book, onBookUpdate }: StyleStageProps) {
                   </button>
                 )}
               </div>
-              <p className="text-xs text-muted-foreground leading-relaxed">
-                尚未生成。请先确认上方风格提示，再在右侧点击「开始生成」，成稿直接在下方编辑后自动保存。
-              </p>
+              {!displayContent && !isGenerating && (
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  尚未生成。请先确认上方风格提示，再在右侧点击「开始生成」，成稿直接在下方编辑后自动保存。
+                </p>
+              )}
               <div className="rounded-lg border border-border/60 bg-background/40 p-4 min-h-[200px] max-h-[400px] overflow-y-auto">
                 {isGenerating || displayContent ? (
                   <article className="prose prose-sm max-w-none prose-p:leading-relaxed prose-p:text-foreground/90 prose-p:my-3 prose-headings:text-foreground dark:prose-invert">
