@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { getPool, ensureUserRow } from '../db/index.js';
+import { getPool, ensureUserRow, bootstrapInitialAdmin } from '../db/index.js';
 import { authRequired } from '../middleware/auth.js';
 
 const router = Router();
@@ -133,6 +133,22 @@ router.post('/register', async (req, res, next) => {
       userRow = await ensureUserRow({ supabaseUid, account: normalizedAccount, email });
     } catch {
       userRow = { id: 0, account: normalizedAccount, isAdmin: false };
+    }
+
+    // 2.5 若本次注册的是初始管理员账号（系统尚无管理员），立即提权，无需重启服务
+    try {
+      await bootstrapInitialAdmin();
+      if (userRow.id > 0) {
+        const adminCheck = await getPool().query<{ is_admin: boolean }>(
+          'SELECT is_admin FROM users WHERE id = $1',
+          [userRow.id]
+        );
+        if (adminCheck.rows[0]) {
+          userRow = { ...userRow, isAdmin: adminCheck.rows[0].is_admin };
+        }
+      }
+    } catch {
+      /* 提权失败不影响注册本身 */
     }
 
     // 3. 直接密码登录换取会话令牌
