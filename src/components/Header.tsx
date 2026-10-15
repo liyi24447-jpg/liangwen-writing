@@ -251,16 +251,50 @@ export default function Header() {
               );
             })}
             {isLoggedIn && (
-              <button
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  navigate('/redemption');
-                }}
-                className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm text-primary hover:bg-primary/10 text-left"
-              >
-                <Crown className="size-4" />
-                {isMember ? '会员中心 / 续费' : '开通会员'}
-              </button>
+              <>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate('/redemption');
+                  }}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm text-primary hover:bg-primary/10 text-left"
+                >
+                  <Crown className="size-4" />
+                  {isMember ? '会员中心 / 续费' : '开通会员'}
+                </button>
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    navigate('/settings');
+                  }}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm text-foreground hover:bg-accent text-left"
+                >
+                  <Settings className="size-4" />
+                  账号设置
+                </button>
+                {isAdmin && (
+                  <button
+                    onClick={() => {
+                      setMobileMenuOpen(false);
+                      navigate('/admin');
+                    }}
+                    className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm text-foreground hover:bg-accent text-left"
+                  >
+                    <Settings className="size-4" />
+                    管理后台
+                  </button>
+                )}
+                <button
+                  onClick={() => {
+                    setMobileMenuOpen(false);
+                    handleLogout();
+                  }}
+                  className="flex items-center gap-2 px-3 py-2.5 rounded-md text-sm text-destructive hover:bg-destructive/10 text-left"
+                >
+                  <LogOut className="size-4" />
+                  退出登录
+                </button>
+              </>
             )}
           </nav>
         </div>

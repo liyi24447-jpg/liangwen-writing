@@ -66,3 +66,6 @@ pnpm-lock.yaml
 
 # Agent files
 .agent/
+
+# 本地启动脚本（含云端密钥，仅本地使用）
+scripts/start-local.ps1
