@@ -17,6 +17,7 @@ import {
   Plus,
   Copy,
   Calendar,
+  KeyRound,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -68,10 +69,15 @@ import {
   apiAdminGenerateRedemptionCodes,
   apiAdminToggleRedemptionCode,
   apiAdminDeleteRedemptionCode,
+  apiAdminPasswordResetCodeList,
+  apiAdminGeneratePasswordResetCodes,
+  apiAdminTogglePasswordResetCode,
+  apiAdminDeletePasswordResetCode,
   type UserPermissions,
   type MembershipLevel,
   type Announcement,
   type RedemptionCode,
+  type PasswordResetCode,
   type AdminUserItem,
   type AdminStats,
   type LevelPermissionsMap,
@@ -90,7 +96,7 @@ const ALL_PERMISSION_KEYS: PermissionKey[] = [
   'canUploadContinue',
 ];
 
-type AdminTab = 'dashboard' | 'users' | 'announcement' | 'redemption' | 'memberPermissions';
+type AdminTab = 'dashboard' | 'users' | 'announcement' | 'redemption' | 'passwordReset' | 'memberPermissions';
 
 const NAV_ITEMS: { key: AdminTab; label: string; icon: typeof LayoutDashboard }[] = [
   { key: 'dashboard', label: '数据概览', icon: LayoutDashboard },
@@ -98,6 +104,7 @@ const NAV_ITEMS: { key: AdminTab; label: string; icon: typeof LayoutDashboard }[
   { key: 'memberPermissions', label: '会员权限', icon: ShieldCheck },
   { key: 'announcement', label: '公告管理', icon: Megaphone },
   { key: 'redemption', label: '兑换码管理', icon: Ticket },
+  { key: 'passwordReset', label: '改密 CDK', icon: KeyRound },
 ];
 
 export default function AdminPage() {
@@ -147,6 +154,15 @@ export default function AdminPage() {
   const [genDays, setGenDays] = useState(30);
   const [genSubmitting, setGenSubmitting] = useState(false);
   const [codeToDelete, setCodeToDelete] = useState<RedemptionCode | null>(null);
+
+  // 改密 CDK
+  const [resetCodes, setResetCodes] = useState<PasswordResetCode[]>([]);
+  const [resetCodesLoading, setResetCodesLoading] = useState(true);
+  const [genResetDialogOpen, setGenResetDialogOpen] = useState(false);
+  const [genResetCount, setGenResetCount] = useState(10);
+  const [genResetPrefix, setGenResetPrefix] = useState('');
+  const [genResetSubmitting, setGenResetSubmitting] = useState(false);
+  const [resetCodeToDelete, setResetCodeToDelete] = useState<PasswordResetCode | null>(null);
 
   // 等级权限
   const [levelPerms, setLevelPerms] = useState<LevelPermissionsMap | null>(null);
@@ -262,6 +278,20 @@ export default function AdminPage() {
     }
   };
 
+  const loadPasswordResetCodes = async () => {
+    setResetCodesLoading(true);
+    try {
+      const res = await apiAdminPasswordResetCodeList();
+      if (res.success && res.data) {
+        setResetCodes(res.data);
+      }
+    } catch {
+      toast.error('加载改密 CDK 失败');
+    } finally {
+      setResetCodesLoading(false);
+    }
+  };
+
   useEffect(() => {
     if (!isAdmin && !authLoading) return;
     if (isAdmin) {
@@ -274,6 +304,7 @@ export default function AdminPage() {
     if (!isAdmin || authLoading) return;
     if (activeTab === 'announcement') loadAnnouncement();
     if (activeTab === 'redemption') loadRedemptionCodes();
+    if (activeTab === 'passwordReset') loadPasswordResetCodes();
     if (activeTab === 'memberPermissions') loadLevelPermissions();
   }, [activeTab, isAdmin, authLoading]);
 
@@ -454,6 +485,56 @@ export default function AdminPage() {
       () => toast.success('已复制'),
       () => toast.error('复制失败')
     );
+  };
+
+  // ===== 改密 CDK 操作 =====
+  const handleGenerateResetCodes = async () => {
+    if (genResetSubmitting) return;
+    if (genResetCount < 1 || genResetCount > 100) {
+      toast.error('生成数量应在 1-100 之间');
+      return;
+    }
+    setGenResetSubmitting(true);
+    try {
+      const res = await apiAdminGeneratePasswordResetCodes({
+        count: genResetCount,
+        prefix: genResetPrefix.trim() || undefined,
+      });
+      if (res.success && res.data) {
+        toast.success(`成功生成 ${res.data.length} 个改密 CDK`);
+        loadPasswordResetCodes();
+        setGenResetDialogOpen(false);
+      } else {
+        toast.error(res.message || '生成失败');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '生成异常，请刷新重试');
+    } finally {
+      setGenResetSubmitting(false);
+    }
+  };
+
+  const handleToggleResetCode = async (code: PasswordResetCode) => {
+    const res = await apiAdminTogglePasswordResetCode(code.id);
+    if (res.success && res.data) {
+      setResetCodes((prev) =>
+        prev.map((c) => (c.id === code.id ? { ...c, isActive: res.data!.isActive } : c))
+      );
+      toast.success(res.data.isActive ? '已启用' : '已停用');
+    } else {
+      toast.error(res.message || '操作失败');
+    }
+  };
+
+  const handleDeleteResetCode = async (code: PasswordResetCode) => {
+    const res = await apiAdminDeletePasswordResetCode(code.id);
+    if (res.success) {
+      setResetCodes((prev) => prev.filter((c) => c.id !== code.id));
+      toast.success('已删除');
+    } else {
+      toast.error(res.message || '删除失败');
+    }
+    setResetCodeToDelete(null);
   };
 
   const filteredUsers = users.filter((u) =>
@@ -1131,6 +1212,138 @@ export default function AdminPage() {
               </Card>
             </div>
           )}
+
+          {activeTab === 'passwordReset' && (
+            <div className="space-y-6">
+              <div className="flex items-center justify-between flex-wrap gap-3">
+                <div>
+                  <h2 className="text-2xl font-bold text-foreground">改密 CDK 管理</h2>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    用户关注微信公众号《靓文写作》获取 CDK，凭 CDK 修改密码
+                  </p>
+                </div>
+                <Button
+                  className="bg-gradient-to-r from-primary to-amber-500 text-primary-foreground hover:from-primary/90 hover:to-amber-500/90"
+                  size="sm"
+                  onClick={() => {
+                    setGenResetCount(10);
+                    setGenResetPrefix('');
+                    setGenResetDialogOpen(true);
+                  }}
+                >
+                  <Plus className="size-4 mr-2" />
+                  生成改密 CDK
+                </Button>
+              </div>
+
+              <Card className="border-primary/10 bg-card/60 backdrop-blur-sm overflow-hidden">
+                <div className="w-full overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b border-border/40 bg-muted/30">
+                        <th className="text-left font-medium text-muted-foreground px-4 py-3 whitespace-nowrap">CDK</th>
+                        <th className="text-left font-medium text-muted-foreground px-4 py-3 whitespace-nowrap">状态</th>
+                        <th className="text-left font-medium text-muted-foreground px-4 py-3 whitespace-nowrap">使用者</th>
+                        <th className="text-left font-medium text-muted-foreground px-4 py-3 whitespace-nowrap">创建时间</th>
+                        <th className="text-right font-medium text-muted-foreground px-4 py-3 whitespace-nowrap">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {resetCodesLoading ? (
+                        <tr>
+                          <td colSpan={5} className="text-center py-12 text-muted-foreground">
+                            加载中...
+                          </td>
+                        </tr>
+                      ) : resetCodes.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="text-center py-12 text-muted-foreground">
+                            暂无 CDK，点击右上角生成
+                          </td>
+                        </tr>
+                      ) : (
+                        resetCodes.map((code) => (
+                          <tr key={code.id} className="border-b border-border/20 last:border-0 hover:bg-accent/30">
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-2">
+                                <code className="bg-muted px-2 py-0.5 rounded text-foreground font-mono text-xs">
+                                  {code.code}
+                                </code>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-6"
+                                  onClick={() => copyCode(code.code)}
+                                >
+                                  <Copy className="size-3" />
+                                </Button>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              {code.isActive ? (
+                                <span className="flex items-center gap-1.5 text-success">
+                                  <Check className="size-4" /> 未使用
+                                </span>
+                              ) : code.isUsed ? (
+                                <span className="flex items-center gap-1.5 text-muted-foreground">
+                                  已使用
+                                </span>
+                              ) : (
+                                <span className="flex items-center gap-1.5 text-destructive">
+                                  <X className="size-4" /> 已停用
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap">
+                              {code.isUsed && code.usedAccount ? code.usedAccount : '—'}
+                            </td>
+                            <td className="px-4 py-3 text-muted-foreground whitespace-nowrap tabular-nums">
+                              {format(code.createdAt, 'yyyy-MM-dd HH:mm')}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center justify-end gap-1">
+                                {code.isActive && !code.isUsed && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8"
+                                    title="停用"
+                                    onClick={() => handleToggleResetCode(code)}
+                                  >
+                                    <X className="size-4" />
+                                  </Button>
+                                )}
+                                {!code.isActive && !code.isUsed && (
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="size-8 text-success"
+                                    title="启用"
+                                    onClick={() => handleToggleResetCode(code)}
+                                  >
+                                    <Check className="size-4" />
+                                  </Button>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  className="size-8 text-destructive hover:text-destructive"
+                                  title="删除"
+                                  onClick={() => setResetCodeToDelete(code)}
+                                >
+                                  <Trash2 className="size-4" />
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </Card>
+            </div>
+          )}
         </main>
       </div>
 
@@ -1191,6 +1404,28 @@ export default function AdminPage() {
             <AlertDialogAction
               className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
               onClick={() => codeToDelete && handleDeleteCode(codeToDelete)}
+            >
+              确认删除
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* 删除改密 CDK 确认 */}
+      <AlertDialog open={!!resetCodeToDelete} onOpenChange={(o) => !o && setResetCodeToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>删除改密 CDK</AlertDialogTitle>
+            <AlertDialogDescription>
+              确定要删除改密 CDK <code className="bg-muted px-1.5 py-0.5 rounded">{resetCodeToDelete?.code}</code> 吗？
+              {resetCodeToDelete && !resetCodeToDelete.isUsed && '删除后该 CDK 将无法被用户使用。'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>取消</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              onClick={() => resetCodeToDelete && handleDeleteResetCode(resetCodeToDelete)}
             >
               确认删除
             </AlertDialogAction>
@@ -1405,6 +1640,52 @@ export default function AdminPage() {
               disabled={genSubmitting}
             >
               {genSubmitting ? '生成中...' : '生成'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* 生成改密 CDK */}
+      <Dialog open={genResetDialogOpen} onOpenChange={(o) => !o && setGenResetDialogOpen(false)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>生成改密 CDK</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="gen-reset-count">生成数量</Label>
+              <Input
+                id="gen-reset-count"
+                type="number"
+                min={1}
+                max={100}
+                value={genResetCount}
+                onChange={(e) =>
+                  setGenResetCount(Math.min(100, Math.max(1, parseInt(e.target.value) || 1)))
+                }
+              />
+              <p className="text-xs text-muted-foreground">一次最多生成 100 个，每个 CDK 仅可使用一次</p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gen-reset-prefix">前缀（可选）</Label>
+              <Input
+                id="gen-reset-prefix"
+                value={genResetPrefix}
+                onChange={(e) => setGenResetPrefix(e.target.value)}
+                placeholder="例如：PWD（留空则无前缀）"
+                autoComplete="off"
+              />
+              <p className="text-xs text-muted-foreground">用于区分 CDK 用途，会自动转为大写</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setGenResetDialogOpen(false)}>取消</Button>
+            <Button
+              className="bg-gradient-to-r from-primary to-amber-500 text-primary-foreground hover:from-primary/90 hover:to-amber-500/90"
+              onClick={handleGenerateResetCodes}
+              disabled={genResetSubmitting}
+            >
+              {genResetSubmitting ? '生成中...' : '生成'}
             </Button>
           </DialogFooter>
         </DialogContent>

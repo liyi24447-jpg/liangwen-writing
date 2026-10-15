@@ -357,10 +357,10 @@ router.get('/me', authRequired, async (req, res, next) => {
 router.post('/change-password', authRequired, async (req, res, next) => {
   try {
     if (!req.user) return;
-    const { oldPassword, newPassword } = req.body as { oldPassword?: string; newPassword?: string };
+    const { cdk, newPassword } = req.body as { cdk?: string; newPassword?: string };
 
-    if (!oldPassword || !newPassword) {
-      res.status(400).json({ success: false, message: '旧密码和新密码都不能为空' });
+    if (!cdk || !newPassword) {
+      res.status(400).json({ success: false, message: 'CDK 和新密码都不能为空' });
       return;
     }
     if (newPassword.length < 6) {
@@ -374,10 +374,39 @@ router.post('/change-password', authRequired, async (req, res, next) => {
       return;
     }
 
-    // 先验证旧密码
-    const check = await supabasePasswordGrant(accountToEmail(req.user.account), oldPassword);
-    if (!check.access_token) {
-      res.status(400).json({ success: false, message: '旧密码错误' });
+    const db = getPool();
+    const trimmedCdk = cdk.trim().toUpperCase();
+    const now = Date.now();
+
+    // 先查询 CDK 基本状态
+    const codeRes = await db.query<{
+      id: number;
+      is_active: boolean;
+      is_used: boolean;
+    }>('SELECT id, is_active, is_used FROM password_reset_codes WHERE code = $1', [trimmedCdk]);
+    const codeRow = codeRes.rows[0];
+    if (!codeRow) {
+      res.status(400).json({ success: false, message: 'CDK 无效，请检查后重试' });
+      return;
+    }
+    if (!codeRow.is_active) {
+      res.status(400).json({ success: false, message: '该 CDK 已停用' });
+      return;
+    }
+    if (codeRow.is_used) {
+      res.status(400).json({ success: false, message: '该 CDK 已被使用' });
+      return;
+    }
+
+    // 原子地占用 CDK（防止并发重复使用）
+    const claim = await db.query(
+      `UPDATE password_reset_codes
+       SET is_used = true, used_by = $1, used_at = $2, updated_at = $2
+       WHERE code = $3 AND is_used = false AND is_active = true`,
+      [req.user.userId, now, trimmedCdk]
+    );
+    if (claim.rowCount === 0) {
+      res.status(400).json({ success: false, message: '该 CDK 已被使用或已停用' });
       return;
     }
 
@@ -391,12 +420,20 @@ router.post('/change-password', authRequired, async (req, res, next) => {
       },
       body: JSON.stringify({ password: newPassword }),
     });
+
     if (!updateRes.ok) {
+      // 密码更新失败，释放 CDK，允许用户重新使用
+      await db.query(
+        `UPDATE password_reset_codes
+         SET is_used = false, used_by = NULL, used_at = NULL, updated_at = $1
+         WHERE code = $2`,
+        [Date.now(), trimmedCdk]
+      ).catch(() => undefined);
       res.status(500).json({ success: false, message: '密码修改失败，请稍后重试' });
       return;
     }
 
-    res.json({ success: true, message: '密码修改成功' });
+    res.json({ success: true, message: '密码修改成功，下次登录请使用新密码' });
   } catch (err) {
     next(err);
   }

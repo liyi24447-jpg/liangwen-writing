@@ -636,6 +636,143 @@ router.delete('/redemption-codes/:id', authRequired, adminRequired, async (req, 
   }
 });
 
+// ========== 管理员：修改密码 CDK ==========
+router.get('/password-reset-codes', authRequired, adminRequired, async (req, res, next) => {
+  try {
+    const { keyword, status } = req.query as { keyword?: string; status?: string };
+    const conditions: string[] = [];
+    const params: Array<string> = [];
+    let i = 1;
+    if (keyword && keyword.trim()) {
+      conditions.push(`code ILIKE $${i++}`);
+      params.push(`%${keyword.trim().toUpperCase()}%`);
+    }
+    if (status === 'active') {
+      conditions.push('is_active = true AND is_used = false');
+    } else if (status === 'used') {
+      conditions.push('is_used = true');
+    } else if (status === 'disabled') {
+      conditions.push('is_active = false');
+    }
+    const where = conditions.length > 0 ? `WHERE ${conditions.join(' AND ')}` : '';
+    const result = await getPool().query<Record<string, unknown>>(
+      `SELECT c.*, u.account AS used_account
+       FROM password_reset_codes c
+       LEFT JOIN users u ON u.id = c.used_by
+       ${where}
+       ORDER BY c.id DESC LIMIT 100`,
+      params
+    );
+    const data = result.rows.map((r) => ({
+      id: r.id,
+      code: r.code,
+      isActive: r.is_active === true,
+      isUsed: r.is_used === true,
+      usedBy: r.used_by ?? undefined,
+      usedAccount: r.used_account ?? undefined,
+      usedAt: r.used_at ?? undefined,
+      createdAt: r.created_at,
+    }));
+    res.json({ success: true, data });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/password-reset-codes', authRequired, adminRequired, async (req, res, next) => {
+  try {
+    const { count, prefix } = req.body as { count?: number; prefix?: string };
+    const codeCount = typeof count === 'number' && count > 0 && count <= 100 ? count : 1;
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    const p = (prefix || '').toUpperCase();
+    const now = Date.now();
+    const generated: string[] = [];
+    const db = getPool();
+    const adminId = req.user?.userId ?? null;
+
+    for (let i = 0; i < codeCount; i++) {
+      let code = '';
+      let attempts = 0;
+      let unique = false;
+      while (!unique && attempts < 10) {
+        code = p;
+        for (let j = 0; j < 12; j++) {
+          code += chars[Math.floor(Math.random() * chars.length)];
+        }
+        const existingR = await db.query('SELECT id FROM password_reset_codes WHERE code = $1', [code]);
+        // 同时避开会员兑换码，避免同串混淆
+        const existingR2 = await db.query('SELECT id FROM redemption_codes WHERE code = $1', [code]);
+        if (existingR.rows.length === 0 && existingR2.rows.length === 0) unique = true;
+        attempts++;
+      }
+      await db.query(
+        `INSERT INTO password_reset_codes (code, is_active, is_used, created_by, created_at, updated_at)
+         VALUES ($1, true, false, $2, $3, $3)`,
+        [code, adminId, now]
+      );
+      generated.push(code);
+    }
+
+    res.json({
+      success: true,
+      message: `已生成 ${generated.length} 个改密 CDK`,
+      data: generated,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.post('/password-reset-codes/:id/toggle', authRequired, adminRequired, async (req, res, next) => {
+  try {
+    const codeId = Number(req.params.id);
+    if (!codeId) {
+      res.status(400).json({ success: false, message: 'CDK ID 无效' });
+      return;
+    }
+    const code = await getPool().query<{ is_active: boolean; is_used: boolean }>(
+      'SELECT is_active, is_used FROM password_reset_codes WHERE id = $1',
+      [codeId]
+    );
+    const row = code.rows[0];
+    if (!row) {
+      res.status(404).json({ success: false, message: 'CDK 不存在' });
+      return;
+    }
+    if (row.is_used) {
+      res.status(400).json({ success: false, message: '已使用的码无法停用' });
+      return;
+    }
+    const newActive = !row.is_active;
+    await getPool().query('UPDATE password_reset_codes SET is_active = $1, updated_at = $2 WHERE id = $3', [
+      newActive,
+      Date.now(),
+      codeId,
+    ]);
+    res.json({
+      success: true,
+      message: newActive ? '已启用' : '已停用',
+      data: { isActive: newActive },
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+router.delete('/password-reset-codes/:id', authRequired, adminRequired, async (req, res, next) => {
+  try {
+    const codeId = Number(req.params.id);
+    if (!codeId) {
+      res.status(400).json({ success: false, message: 'CDK ID 无效' });
+      return;
+    }
+    await getPool().query('DELETE FROM password_reset_codes WHERE id = $1', [codeId]);
+    res.json({ success: true, message: '已删除' });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // ========== 管理员：统计概览 ==========
 router.get('/stats', authRequired, adminRequired, async (_req, res, next) => {
   try {

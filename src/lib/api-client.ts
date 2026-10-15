@@ -186,6 +186,17 @@ export interface RedemptionCode {
   updatedAt: number;
 }
 
+export interface PasswordResetCode {
+  id: number;
+  code: string;
+  isActive: boolean;
+  isUsed: boolean;
+  usedBy?: number;
+  usedAccount?: string;
+  usedAt?: number;
+  createdAt: number;
+}
+
 export interface LoginResult {
   accessToken: string;
   refreshToken?: string;
@@ -226,10 +237,10 @@ export async function apiMe(): Promise<ApiResponse<{ user: UserInfo; permissions
   });
 }
 
-export async function apiChangePassword(oldPassword: string, newPassword: string): Promise<ApiResponse> {
+export async function apiChangePassword(cdk: string, newPassword: string): Promise<ApiResponse> {
   return apiRequest('/auth/change-password', {
     method: 'POST',
-    body: JSON.stringify({ oldPassword, newPassword }),
+    body: JSON.stringify({ cdk, newPassword }),
   });
 }
 
@@ -379,6 +390,38 @@ export async function apiAdminToggleRedemptionCode(codeId: number): Promise<ApiR
 
 export async function apiAdminDeleteRedemptionCode(codeId: number): Promise<ApiResponse> {
   return apiRequest(`/admin/redemption-codes/${codeId}`, { method: 'DELETE' });
+}
+
+// ========== 改密 CDK 管理 API ==========
+
+export async function apiAdminPasswordResetCodeList(params?: {
+  keyword?: string;
+  status?: string;
+}): Promise<ApiResponse<PasswordResetCode[]>> {
+  const qs = params ? `?${new URLSearchParams(params as Record<string, string>).toString()}` : '';
+  return apiRequest<PasswordResetCode[]>(`/admin/password-reset-codes${qs}`, { method: 'GET' });
+}
+
+export async function apiAdminGeneratePasswordResetCodes(data: {
+  count?: number;
+  prefix?: string;
+}): Promise<ApiResponse<string[]>> {
+  return apiRequest<string[]>('/admin/password-reset-codes', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function apiAdminTogglePasswordResetCode(
+  codeId: number
+): Promise<ApiResponse<{ isActive: boolean }>> {
+  return apiRequest<{ isActive: boolean }>(`/admin/password-reset-codes/${codeId}/toggle`, {
+    method: 'POST',
+  });
+}
+
+export async function apiAdminDeletePasswordResetCode(codeId: number): Promise<ApiResponse> {
+  return apiRequest(`/admin/password-reset-codes/${codeId}`, { method: 'DELETE' });
 }
 
 // ========== 公告 API ==========

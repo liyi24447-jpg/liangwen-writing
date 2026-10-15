@@ -1,9 +1,11 @@
 import { useState, useRef } from 'react';
-import { Download, Upload, Cloud, Shield, AlertTriangle, Check, X, Info } from 'lucide-react';
+import { Download, Upload, KeyRound, Check, MessageCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { useAuth } from '@/lib/auth-context';
-import { apiExportUserData, apiImportUserData, type ExportResult } from '@/lib/api-client';
+import { apiExportUserData, apiImportUserData, apiChangePassword, type ExportResult } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import { useNavigate } from 'react-router-dom';
@@ -16,6 +18,12 @@ export default function SettingsPage() {
   const [importing, setImporting] = useState(false);
   const [importPreview, setImportPreview] = useState<ExportResult | null>(null);
   const [importFile, setImportFile] = useState<File | null>(null);
+
+  // 修改密码
+  const [pwdCdk, setPwdCdk] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [pwdSubmitting, setPwdSubmitting] = useState(false);
 
   const handleExport = async () => {
     setExporting(true);
@@ -104,13 +112,110 @@ export default function SettingsPage() {
     }
   };
 
+  const handleChangePassword = async () => {
+    if (pwdSubmitting) return;
+    if (!pwdCdk.trim()) {
+      toast.error('请输入 CDK');
+      return;
+    }
+    if (newPassword.length < 6) {
+      toast.error('新密码长度至少 6 位');
+      return;
+    }
+    if (newPassword !== confirmPassword) {
+      toast.error('两次输入的新密码不一致');
+      return;
+    }
+    setPwdSubmitting(true);
+    try {
+      const res = await apiChangePassword(pwdCdk.trim(), newPassword);
+      if (res.success) {
+        toast.success('密码修改成功，下次登录请使用新密码');
+        setPwdCdk('');
+        setNewPassword('');
+        setConfirmPassword('');
+      } else {
+        toast.error(res.message || '密码修改失败');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : '密码修改异常，请刷新重试');
+    } finally {
+      setPwdSubmitting(false);
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-background py-10">
       <div className="max-w-3xl mx-auto px-4 md:px-6 space-y-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">账号设置</h1>
-          <p className="text-sm text-muted-foreground mt-1">管理你的账号数据与跨设备同步</p>
+          <p className="text-sm text-muted-foreground mt-1">管理你的账号安全、密码与数据</p>
         </div>
+
+        {/* 修改密码 */}
+        <Card className="border-primary/10 bg-card/60 backdrop-blur-sm">
+          <CardHeader>
+            <CardTitle className="text-lg flex items-center gap-2">
+              <KeyRound className="size-5 text-primary" />
+              修改密码
+            </CardTitle>
+            <CardDescription>
+              为保障账号安全，修改密码需要先获取 CDK（一次性验证码）
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg border border-primary/20 bg-primary/5 p-3.5 flex items-start gap-2.5 text-sm">
+              <MessageCircle className="size-4 text-primary shrink-0 mt-0.5" />
+              <p className="text-foreground/80">
+                请先关注微信公众号<strong>《靓文写作》</strong>，在公众号内获取修改密码专用
+                <strong> CDK</strong>，每个 CDK 仅可使用一次。
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="pwd-cdk">CDK（验证码）</Label>
+              <Input
+                id="pwd-cdk"
+                value={pwdCdk}
+                onChange={(e) => setPwdCdk(e.target.value)}
+                placeholder="请输入公众号获取的 CDK"
+                autoComplete="off"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-pwd">新密码</Label>
+              <Input
+                id="new-pwd"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="请输入新密码（至少 6 位）"
+                autoComplete="new-password"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="confirm-pwd">确认新密码</Label>
+              <Input
+                id="confirm-pwd"
+                type="password"
+                value={confirmPassword}
+                onChange={(e) => setConfirmPassword(e.target.value)}
+                placeholder="请再次输入新密码"
+                autoComplete="new-password"
+              />
+            </div>
+
+            <Button
+              onClick={handleChangePassword}
+              disabled={pwdSubmitting || !pwdCdk.trim() || newPassword.length < 6 || confirmPassword.length < 6}
+              className="w-full"
+            >
+              {pwdSubmitting ? '正在提交...' : '确认修改密码'}
+            </Button>
+          </CardContent>
+        </Card>
 
         {/* 数据导出 */}
         <Card className="border-primary/10 bg-card/60 backdrop-blur-sm">
@@ -194,94 +299,6 @@ export default function SettingsPage() {
                 </Button>
               </div>
             )}
-          </CardContent>
-        </Card>
-
-        {/* 跨设备同步方案 */}
-        <Card className="border-amber-400/40 bg-amber-50/50 backdrop-blur-sm">
-          <CardHeader>
-            <CardTitle className="text-lg text-amber-700 flex items-center gap-2">
-              <Cloud className="size-5" />
-              关于跨设备数据同步
-            </CardTitle>
-            <CardDescription className="text-amber-700/70">
-              当前数据存储在你的浏览器本地，下面是可行的跨设备同步方案
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4 text-sm text-amber-800/80">
-            <div className="space-y-2">
-              <p className="font-medium text-amber-800 flex items-center gap-2">
-                <Info className="size-4" />
-                当前模式说明
-              </p>
-              <p>
-                本应用当前运行在前端预览模式，你的账号、作品、会员等所有数据都存储在浏览器本地（IndexedDB），
-                <strong>数据不会上传到云端，也无法自动跨设备同步</strong>。
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="font-medium text-amber-800">方案一：数据导出/导入迁移（已启用）</p>
-              <p>
-                使用上方的「导出数据」和「导入数据」功能，可以在不同设备之间手动迁移你的作品数据。
-                步骤：
-              </p>
-              <ol className="list-decimal list-inside space-y-1 pl-2">
-                <li>在设备 A 注册账号并使用，点击「导出全部数据」下载 JSON 文件</li>
-                <li>在设备 B 注册同一账号（或已有账号登录）</li>
-                <li>在设备 B 点击「导入数据」，选择设备 A 导出的 JSON 文件</li>
-                <li>导入完成后，设备 B 就有了设备 A 的所有作品</li>
-              </ol>
-              <p className="pt-1">
-                <strong>注意：</strong>账号密码需要你自己在两台设备分别注册（建议用相同的账号名便于记忆），
-                导出文件只包含作品数据，不包含密码。
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="font-medium text-amber-800 flex items-center gap-2">
-                <Shield className="size-4" />
-                方案二：部署全栈版本（推荐长期使用）
-              </p>
-              <p>
-                本应用已内置完整的 Express + SQLite 全栈后端（<code className="bg-amber-100 px-1.5 py-0.5 rounded">server/</code> 目录），
-                支持账号系统、作品云端存储、会员体系、兑换码、公告、管理后台等全部功能。
-              </p>
-              <p>如果你有 Node.js 服务器，可按以下步骤部署全栈版本，实现真正的云端跨设备同步：</p>
-              <pre className="bg-amber-100/60 p-3 rounded-lg text-xs overflow-x-auto">
-{`# 1. 将项目部署到支持 Node.js 的服务器
-# 2. 安装依赖
-npm install
-
-# 3. 构建前端
-npm run build
-
-# 4. 启动后端服务（监听 3001 端口）
-node server/index.js
-
-# 5. 配置反向代理（Nginx 示例）：
-#    /api -> http://localhost:3001/api
-#    /    -> 前端静态文件（dist/ 目录）
-
-# 6. 数据库文件默认在 data/app.db，定期备份即可`}
-              </pre>
-              <p>
-                部署全栈版本后，前端会自动检测后端可用性并切换到真实 API 模式，
-                所有账号、作品、会员数据都会存储在服务器的 SQLite 数据库中，实现真正的跨设备同步。
-              </p>
-            </div>
-
-            <div className="space-y-2">
-              <p className="font-medium text-amber-800 flex items-center gap-2">
-                <AlertTriangle className="size-4" />
-                数据安全提示
-              </p>
-              <ul className="list-disc list-inside space-y-1 pl-2">
-                <li>导出文件包含你的作品全文，请妥善保管，不要分享给他人</li>
-                <li>浏览器清理缓存或卸载浏览器会导致本地数据丢失，建议定期导出备份</li>
-                <li>全栈部署后，请定期备份 <code className="bg-amber-100 px-1 py-0.5 rounded">data/app.db</code> 文件</li>
-              </ul>
-            </div>
           </CardContent>
         </Card>
       </div>
